@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>زر ومؤقت — لعبة الجهازين</title>
+<style>
+  :root{
+    --bg: #0f172a;
+    --btn-idle: #16a34a;
+    --btn-active: #dc2626;
+    --btn-text: #ffffff;
+    --btn-label-size: 60px;
+
+    --timer-bg: #0f172a;
+    --timer-color: #facc15;
+    --timer-scale: 100%;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    overflow: hidden;
+    font-family: "Tahoma", "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: #e5e7eb;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .screen {
+    display: none;
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+  }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ---------- الشاشة الرئيسية ---------- */
+  #screen-home, #screen-waiting {
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+  }
+  .card h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    color: #f8fafc;
+  }
+  .card p.sub {
+    color: #94a3b8;
+    font-size: 13px;
+    margin: 0 0 24px;
+    line-height: 1.7;
+  }
+
+  .field { margin-bottom: 14px; text-align: right; }
+  .field label { display:block; font-size: 13px; color:#94a3b8; margin-bottom: 6px; }
+  .field-row { display:flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #334155;
+    background: #0b1220;
+    color: #f1f5f9;
+    font-size: 16px;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  input[type="text"]:focus { outline: 2px solid #38bdf8; }
+
+  button.btn {
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: none;
+    background: #334155;
+    color: #f1f5f9;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button.btn:active { transform: scale(0.97); }
+  button.primary {
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  button.primary:disabled { opacity: 0.5; }
+  button.danger { background: #7f1d1d; color: #fecaca; }
+
+  #home-status, #waiting-status {
+    margin-top: 14px;
+    font-size: 13px;
+    color: #94a3b8;
+    min-height: 18px;
+    line-height: 1.6;
+  }
+  #home-status.error { color: #f87171; }
+
+  /* ---------- شاشة الانتظار ---------- */
+  .spinner {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    border: 4px solid #334155;
+    border-top-color: #38bdf8;
+    margin: 0 auto 18px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .room-code-display {
+    font-size: 30px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: #38bdf8;
+    background: #0b1220;
+    border: 1px dashed #334155;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 16px 0;
+    direction: ltr;
+  }
+
+  /* ---------- شاشة الزر ---------- */
+  #screen-button {
+    align-items: stretch;
+    justify-content: stretch;
+    position: relative;
+  }
+  #btn-surface {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--btn-idle);
+    color: var(--btn-text);
+    font-size: var(--btn-label-size);
+    font-weight: bold;
+    text-align: center;
+    transition: background-color .08s ease-out;
+    padding: 24px;
+  }
+  #btn-surface.running { background: var(--btn-active); }
+
+  #reset-btn {
+    position: fixed;
+    bottom: 26px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.4);
+    border: 2px solid rgba(255,255,255,0.4);
+    color: #fff;
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 6;
+    cursor: pointer;
+  }
+  #reset-btn.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* ---------- شاشة المؤقت ---------- */
+  #screen-timer {
+    align-items: center;
+    justify-content: center;
+    background: var(--timer-bg);
+  }
+  #timer-display {
+    font-family: "Courier New", monospace;
+    font-weight: bold;
+    color: var(--timer-color);
+    font-size: calc(18vw * (var(--timer-scale) / 100%));
+    line-height: 1;
+    letter-spacing: 2px;
+    direction: ltr;
+  }
+  @media (orientation: landscape) {
+    #timer-display { font-size: calc(14vw * (var(--timer-scale) / 100%)); }
+  }
+
+  /* شريط علوي عائم لكل شاشة لعب */
+  .top-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .top-bar .pill {
+    pointer-events: auto;
+    background: rgba(0,0,0,0.35);
+    color: #e2e8f0;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .top-bar .gear {
+    pointer-events: auto;
+    background: rgba(0,0,0,0.35);
+    color: #fff;
+    font-size: 18px;
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+
+  /* ---------- نافذة الإعدادات ---------- */
+  #settings-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 20;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #settings-overlay.active { display: flex; }
+  .settings-box {
+    background: #111827;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 380px;
+    max-height: 86vh;
+    overflow-y: auto;
+    color: #e5e7eb;
+  }
+  .settings-box h2 { margin: 0 0 14px; font-size: 17px; text-align: center; }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #1f2937;
+    gap: 10px;
+  }
+  .setting-row label { font-size: 13px; color: #cbd5e1; }
+  .setting-row input[type="color"] {
+    width: 44px; height: 32px; border: none; border-radius: 6px; background: none; cursor: pointer;
+  }
+  .setting-row input[type="range"] { width: 130px; }
+  .setting-row input[type="checkbox"] { width: 20px; height: 20px; }
+
+  .settings-footer {
+    display: flex; gap: 10px; margin-top: 16px;
+  }
+  .settings-footer button { flex: 1; }
+
+  .hint { font-size: 12px; color: #64748b; margin-top: 10px; line-height: 1.6; text-align: right; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ الشاشة الرئيسية ============ -->
+  <div id="screen-home" class="screen active">
+    <div class="card">
+      <h1>لعبة الزر والمؤقت</h1>
+      <p class="sub">أدخل رمز الغرفة واضغط دخول. أول جهاز يدخل الرمز يحصل على الزر، وينتظر حتى يدخل الجهاز الثاني بنفس الرمز فيحصل على المؤقت تلقائيًا.</p>
+
+      <div class="field">
+        <label>رمز الغرفة (نفس الرمز في الجهازين)</label>
+        <div class="field-row">
+          <input type="text" id="room-code" placeholder="مثال: ahmad123" maxlength="20">
+          <button class="btn" id="btn-generate">توليد</button>
+        </div>
+      </div>
+
+      <button class="primary" id="btn-connect">دخول</button>
+      <div id="home-status"></div>
+    </div>
+  </div>
+
+  <!-- ============ شاشة الانتظار (الجهاز الأول) ============ -->
+  <div id="screen-waiting" class="screen">
+    <div class="card">
+      <div class="spinner"></div>
+      <h1>بانتظار الجهاز الثاني...</h1>
+      <p class="sub">افتح نفس الرابط في الجهاز الثاني وأدخل هذا الرمز بالضبط</p>
+      <div class="room-code-display" id="waiting-room-code">------</div>
+      <div id="waiting-status"></div>
+      <button class="btn danger" id="btn-cancel-waiting" style="margin-top:16px;width:100%;">إلغاء والرجوع</button>
+    </div>
+  </div>
+
+  <!-- ============ شاشة الزر ============ -->
+  <div id="screen-button" class="screen">
+    <div class="top-bar">
+      <div class="gear" id="gear-button">⚙</div>
+      <div class="pill" id="ping-button">-- ms</div>
+    </div>
+    <div id="btn-surface">اضغط للبدء</div>
+    <div id="reset-btn" class="disabled" title="تصفير">↺</div>
+  </div>
+
+  <!-- ============ شاشة المؤقت ============ -->
+  <div id="screen-timer" class="screen">
+    <div class="top-bar">
+      <div class="gear" id="gear-timer">⚙</div>
+      <div class="pill" id="ping-timer">-- ms</div>
+    </div>
+    <div id="timer-display">00:00.00</div>
+  </div>
+
+  <!-- ============ نافذة الإعدادات ============ -->
+  <div id="settings-overlay">
+    <div class="settings-box">
+      <h2 id="settings-title">الإعدادات</h2>
+
+      <div id="pane-button-settings">
+        <div class="setting-row"><label>لون الخلفية (وضع الاستعداد)</label><input type="color" id="c-btn-idle"></div>
+        <div class="setting-row"><label>لون الخلفية (وضع التشغيل)</label><input type="color" id="c-btn-active"></div>
+        <div class="setting-row"><label>لون النص</label><input type="color" id="c-btn-text"></div>
+        <div class="setting-row"><label>حجم الخط</label><input type="range" id="c-btn-size" min="30" max="120" value="60"></div>
+      </div>
+
+      <div id="pane-timer-settings">
+        <div class="setting-row"><label>لون الخلفية</label><input type="color" id="c-timer-bg"></div>
+        <div class="setting-row"><label>لون الأرقام</label><input type="color" id="c-timer-color"></div>
+        <div class="setting-row"><label>حجم الأرقام</label><input type="range" id="c-timer-scale" min="60" max="160" value="100"></div>
+        <div class="setting-row"><label>صوت البدء والإيقاف</label><input type="checkbox" id="c-timer-sound" checked></div>
+        <div class="setting-row"><label>مستوى الصوت</label><input type="range" id="c-timer-volume" min="0" max="100" value="80"></div>
+        <div class="setting-row"><label>تجربة الصوت</label><button class="btn" id="btn-test-sound" type="button">🔊 تجربة</button></div>
+      </div>
+
+      <div class="hint">هذه الإعدادات تُحفظ محليًا في هذا الجهاز فقط، ولا تؤثر على الجهاز الآخر.</div>
+
+      <div class="settings-footer">
+        <button class="btn" id="btn-settings-defaults">استعادة الافتراضي</button>
+        <button class="primary" id="btn-settings-close" style="margin:0;">تم</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+// Trystero لا يعتمد على سيرفر وساطة واحد مثل PeerJS، بل يبحث عن الجهاز
+// الثاني عبر عشرات من سيرفرات Nostr العامة الموزّعة في نفس الوقت. إذا كان
+// بعضها محجوبًا أو معطلًا، تُستخدم البقية تلقائيًا — فلا تعطّل واحد يوقف اللعبة.
+// نقل البيانات الفعلي بعد الاتصال يبقى WebRTC مباشر بين الجهازين (بدون تأخير إضافي).
+import { joinRoom, selfId } from 'https://esm.run/trystero';
+
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------
+  // إعدادات عامة
+  // ---------------------------------------------------------------
+  var ROOM_PREFIX = "friendtimer-v2-";
+  var SYNC_SAMPLES = 6;
+
+  // معرّف فريد للتطبيق (يعزل غرفنا عن أي تطبيق آخر يستخدم Trystero)
+  var APP_ID = "friendtimer-v2-app-9f3k2q";
+
+  // سيرفرات ICE: STUN عام + TURN احتياطي مجاني، لضمان نجاح اتصال الفيديو/البيانات
+  // المباشر (WebRTC) حتى خلف شبكات جوال أو شبكات مقيّدة لا تسمح باتصال مباشر
+  var ICE_CONFIG = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
+  };
+
+  var els = {
+    roomCode: document.getElementById('room-code'),
+    btnGenerate: document.getElementById('btn-generate'),
+    btnConnect: document.getElementById('btn-connect'),
+    homeStatus: document.getElementById('home-status'),
+    waitingRoomCode: document.getElementById('waiting-room-code'),
+    waitingStatus: document.getElementById('waiting-status'),
+    btnCancelWaiting: document.getElementById('btn-cancel-waiting'),
+    btnSurface: document.getElementById('btn-surface'),
+    resetBtn: document.getElementById('reset-btn'),
+    timerDisplay: document.getElementById('timer-display'),
+    pingButton: document.getElementById('ping-button'),
+    pingTimer: document.getElementById('ping-timer'),
+    settingsOverlay: document.getElementById('settings-overlay'),
+    settingsTitle: document.getElementById('settings-title'),
+    paneButtonSettings: document.getElementById('pane-button-settings'),
+    paneTimerSettings: document.getElementById('pane-timer-settings'),
+    gearButton: document.getElementById('gear-button'),
+    gearTimer: document.getElementById('gear-timer'),
+    btnSettingsClose: document.getElementById('btn-settings-close'),
+    btnSettingsDefaults: document.getElementById('btn-settings-defaults')
+  };
+
+  var state = {
+    role: null,          // 'button' أو 'timer' — يُحدَّد تلقائيًا حسب من يدخل أولًا
+    room: null,          // كائن غرفة Trystero
+    sendAction: null,    // دالة إرسال الرسائل عبر Trystero
+    peerId: null,        // معرّف الجهاز الآخر داخل الغرفة
+    myPriority: 0,       // رقم عشوائي يُستخدم لتحديد من يصبح "الزر"
+    roleDecided: false,
+    clockOffset: 0,
+    running: false,
+    startAt: 0,
+    frozenElapsed: 0,
+    rafId: null,
+    syncSamples: [],
+    waitTimeoutId: null
+  };
+
+  // ---------------------------------------------------------------
+  // إدارة الشاشات
+  // ---------------------------------------------------------------
+  function showScreen(id){
+    ['screen-home','screen-waiting','screen-button','screen-timer'].forEach(function(s){
+      document.getElementById(s).classList.toggle('active', s === id);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // الإعدادات (تُحفظ محليًا لكل جهاز)
+  // ---------------------------------------------------------------
+  var DEFAULTS = {
+    button: { idle: '#16a34a', active: '#dc2626', text: '#ffffff', size: 60 },
+    timer:  { bg: '#0f172a', color: '#facc15', scale: 100, sound: true, volume: 80 }
+  };
+
+  function loadSettings(){
+    var b, t;
+    try { b = JSON.parse(localStorage.getItem('ft_button_settings')); } catch(e){ b = null; }
+    try { t = JSON.parse(localStorage.getItem('ft_timer_settings')); } catch(e){ t = null; }
+    return {
+      button: Object.assign({}, DEFAULTS.button, b || {}),
+      timer: Object.assign({}, DEFAULTS.timer, t || {})
+    };
+  }
+
+  function saveSettings(settings){
+    localStorage.setItem('ft_button_settings', JSON.stringify(settings.button));
+    localStorage.setItem('ft_timer_settings', JSON.stringify(settings.timer));
+  }
+
+  function applySettings(settings){
+    var root = document.documentElement.style;
+    root.setProperty('--btn-idle', settings.button.idle);
+    root.setProperty('--btn-active', settings.button.active);
+    root.setProperty('--btn-text', settings.button.text);
+    root.setProperty('--btn-label-size', settings.button.size + 'px');
+
+    root.setProperty('--timer-bg', settings.timer.bg);
+    root.setProperty('--timer-color', settings.timer.color);
+    root.setProperty('--timer-scale', settings.timer.scale + '%');
+  }
+
+  var currentSettings = loadSettings();
+  applySettings(currentSettings);
+
+  function fillSettingsForm(){
+    document.getElementById('c-btn-idle').value = currentSettings.button.idle;
+    document.getElementById('c-btn-active').value = currentSettings.button.active;
+    document.getElementById('c-btn-text').value = currentSettings.button.text;
+    document.getElementById('c-btn-size').value = currentSettings.button.size;
+
+    document.getElementById('c-timer-bg').value = currentSettings.timer.bg;
+    document.getElementById('c-timer-color').value = currentSettings.timer.color;
+    document.getElementById('c-timer-scale').value = currentSettings.timer.scale;
+    document.getElementById('c-timer-sound').checked = currentSettings.timer.sound;
+    document.getElementById('c-timer-volume').value = currentSettings.timer.volume;
+  }
+
+  function bindSettingsInputs(){
+    document.getElementById('c-btn-idle').addEventListener('input', function(e){
+      currentSettings.button.idle = e.target.value; applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-btn-active').addEventListener('input', function(e){
+      currentSettings.button.active = e.target.value; applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-btn-text').addEventListener('input', function(e){
+      currentSettings.button.text = e.target.value; applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-btn-size').addEventListener('input', function(e){
+      currentSettings.button.size = parseInt(e.target.value,10); applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-timer-bg').addEventListener('input', function(e){
+      currentSettings.timer.bg = e.target.value; applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-timer-color').addEventListener('input', function(e){
+      currentSettings.timer.color = e.target.value; applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-timer-scale').addEventListener('input', function(e){
+      currentSettings.timer.scale = parseInt(e.target.value,10); applySettings(currentSettings); saveSettings(currentSettings);
+    });
+    document.getElementById('c-timer-sound').addEventListener('change', function(e){
+      currentSettings.timer.sound = e.target.checked; saveSettings(currentSettings);
+    });
+    document.getElementById('c-timer-volume').addEventListener('input', function(e){
+      currentSettings.timer.volume = parseInt(e.target.value,10); saveSettings(currentSettings);
+    });
+    document.getElementById('btn-test-sound').addEventListener('click', function(){
+      ensureAudio();
+      playStartBeep();
+    });
+  }
+  bindSettingsInputs();
+
+  // فتح الإعدادات الخاصة بدور هذا الجهاز فقط (بدون تبويبات)
+  function openSettings(){
+    fillSettingsForm();
+    if(state.role === 'timer'){
+      els.settingsTitle.textContent = 'إعدادات المؤقت';
+      els.paneButtonSettings.style.display = 'none';
+      els.paneTimerSettings.style.display = 'block';
+    } else {
+      els.settingsTitle.textContent = 'إعدادات الزر';
+      els.paneButtonSettings.style.display = 'block';
+      els.paneTimerSettings.style.display = 'none';
+    }
+    els.settingsOverlay.classList.add('active');
+  }
+  function closeSettings(){
+    els.settingsOverlay.classList.remove('active');
+  }
+
+  els.gearButton.addEventListener('click', openSettings);
+  els.gearTimer.addEventListener('click', openSettings);
+  els.btnSettingsClose.addEventListener('click', closeSettings);
+  els.btnSettingsDefaults.addEventListener('click', function(){
+    if(state.role === 'timer'){
+      currentSettings.timer = JSON.parse(JSON.stringify(DEFAULTS.timer));
+    } else {
+      currentSettings.button = JSON.parse(JSON.stringify(DEFAULTS.button));
+    }
+    applySettings(currentSettings);
+    saveSettings(currentSettings);
+    fillSettingsForm();
+  });
+
+  // ---------------------------------------------------------------
+  // الصوت: صفارات البدء والإيقاف (تُولَّد بالكود، بدون ملفات صوتية)
+  // ---------------------------------------------------------------
+  var audioCtx = null;
+
+  function ensureAudio(){
+    if(!audioCtx){
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch(e){ return; }
+    }
+    if(audioCtx.state === 'suspended'){
+      audioCtx.resume();
+    }
+  }
+
+  function playTone(freq, duration, delay){
+    if(!audioCtx || !currentSettings.timer.sound) return;
+    var startTime = audioCtx.currentTime + (delay || 0);
+    var vol = (currentSettings.timer.volume / 100) * 0.5;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(vol, startTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+  }
+
+  function playStartBeep(){
+    playTone(1046, 0.18, 0);
+  }
+  function playStopBeep(){
+    playTone(600, 0.13, 0);
+    playTone(600, 0.13, 0.18);
+  }
+
+  // ---------------------------------------------------------------
+  // رمز الغرفة
+  // ---------------------------------------------------------------
+  els.btnGenerate.addEventListener('click', function(){
+    var code = Math.random().toString(36).substring(2, 7);
+    els.roomCode.value = code;
+  });
+
+  function setHomeStatus(msg, isError){
+    els.homeStatus.textContent = msg;
+    els.homeStatus.classList.toggle('error', !!isError);
+  }
+
+  // ---------------------------------------------------------------
+  // الاتصال عبر Trystero (بدون سيرفر وساطة مركزي واحد)
+  // ---------------------------------------------------------------
+  els.btnConnect.addEventListener('click', function(){
+    ensureAudio(); // فتح الصوت أثناء لمسة المستخدم (مطلوب على آيفون وأندرويد)
+    var raw = els.roomCode.value.trim();
+    if(!raw){
+      setHomeStatus('من فضلك أدخل رمز الغرفة أولاً', true);
+      return;
+    }
+    var roomId = ROOM_PREFIX + raw.replace(/\s+/g,'').toLowerCase();
+    els.btnConnect.disabled = true;
+    els.waitingRoomCode.textContent = raw;
+    els.waitingStatus.textContent = '';
+    setHomeStatus('جاري الاتصال...', false);
+    showScreen('screen-waiting');
+    connectToRoom(roomId);
+  });
+
+  els.btnCancelWaiting.addEventListener('click', function(){
+    leaveRoom();
+    showScreen('screen-home');
+    els.btnConnect.disabled = false;
+    setHomeStatus('', false);
+  });
+
+  function leaveRoom(){
+    clearTimeout(state.waitTimeoutId);
+    try { if(state.room) state.room.leave(); } catch(e){}
+    state.room = null;
+    state.sendAction = null;
+    state.peerId = null;
+    state.roleDecided = false;
+    state.role = null;
+  }
+
+  // ننضم إلى غرفة برمز الغرفة. Trystero يبحث تلقائيًا عبر عدة سيرفرات
+  // موزّعة عن أي جهاز آخر دخل بنفس الرمز؛ ما إن يلتقي الجهازان تتفاوض
+  // اللعبة تلقائيًا على من يكون "الزر" ومن يكون "المؤقت".
+  function connectToRoom(roomId){
+    state.roleDecided = false;
+    state.role = null;
+    // رقم عشوائي فريد يُستخدم لاحقًا لتحديد الدور بشكل متطابق في الجهازين
+    state.myPriority = Date.now() + Math.random();
+
+    var room;
+    try {
+      room = joinRoom({ appId: APP_ID, rtcConfig: ICE_CONFIG, relayRedundancy: 5 }, roomId);
+    } catch(e){
+      showConnectError('تعذّر بدء الاتصال. حدّث الصفحة وحاول مرة أخرى.');
+      return;
+    }
+    state.room = room;
+
+    var actions = room.makeAction('msg');
+    state.sendAction = actions[0];
+    var getMsg = actions[1];
+    getMsg(function(data){ handleMessage(data); });
+
+    room.onPeerJoin(function(peerId){
+      clearTimeout(state.waitTimeoutId);
+      state.peerId = peerId;
+      els.waitingStatus.textContent = 'تم العثور على الجهاز الآخر، جاري التزامن...';
+      state.sendAction({ t: 'hello', p: state.myPriority, id: selfId }, peerId);
+    });
+
+    room.onPeerLeave(function(peerId){
+      if(peerId !== state.peerId) return;
+      if(state.roleDecided){
+        alert('انقطع الاتصال بالجهاز الآخر.');
+        location.reload();
+      } else {
+        state.peerId = null;
+        els.waitingStatus.textContent = 'انتظر... حاول الجهاز الآخر لكنه انفصل، أعد المحاولة من طرفه.';
+      }
+    });
+
+    // إذا طالت مدة الانتظار كثيرًا نطمئن المستخدم أن البحث مستمر (وليس معلّقًا)
+    state.waitTimeoutId = setTimeout(function(){
+      els.waitingStatus.textContent = 'ما زلنا نبحث عن الجهاز الآخر عبر الشبكة... تأكد أنه فتح نفس الرابط وأدخل نفس الرمز بالضبط.';
+    }, 12000);
+  }
+
+  function showConnectError(msg){
+    setHomeStatus(msg, true);
+    els.waitingStatus.textContent = msg;
+    els.btnConnect.disabled = false;
+    showScreen('screen-home');
+  }
+
+  function sendMsg(obj){
+    if(state.sendAction && state.peerId){
+      state.sendAction(obj, state.peerId);
+    }
+  }
+
+  function onConnected(){
+    if(state.role === 'button'){
+      showScreen('screen-button');
+    } else {
+      showScreen('screen-timer');
+      runClockSync();
+    }
+    startPingLoop();
+  }
+
+  // ---------------------------------------------------------------
+  // مزامنة الساعة بين الجهازين (لإلغاء أثر تأخير الشبكة)
+  // ---------------------------------------------------------------
+  function runClockSync(){
+    state.syncSamples = [];
+    pingForSync();
+  }
+
+  function pingForSync(){
+    sendMsg({ t: 'sync-ping', t0: Date.now() });
+  }
+
+  function startPingLoop(){
+    setInterval(function(){
+      sendMsg({ t: 'rtt-ping', t0: Date.now() });
+    }, 4000);
+  }
+
+  function handleMessage(data){
+    if(!data || !data.t) return;
+
+    switch(data.t){
+
+      case 'hello': {
+        if(state.roleDecided) break;
+        state.roleDecided = true;
+        // نفس المقارنة تُحسب بنفس الطريقة في الجهازين فتُعطي نتيجة متطابقة:
+        // صاحب الرقم الأصغر (الذي دخل أولًا غالبًا) يصبح "الزر"
+        var iAmFirst;
+        if(state.myPriority !== data.p){
+          iAmFirst = state.myPriority < data.p;
+        } else {
+          iAmFirst = selfId < data.id; // كسر تعادل نادر جدًا
+        }
+        state.role = iAmFirst ? 'button' : 'timer';
+        onConnected();
+        break;
+      }
+      case 'sync-ping': {
+        sendMsg({ t: 'sync-pong', t0: data.t0, t1: Date.now() });
+        break;
+      }
+      case 'sync-pong': {
+        var t3 = Date.now();
+        var rtt = t3 - data.t0;
+        var offset = data.t1 - (data.t0 + t3) / 2;
+        state.syncSamples.push({ rtt: rtt, offset: offset });
+        if(state.syncSamples.length < SYNC_SAMPLES){
+          pingForSync();
+        } else {
+          var best = state.syncSamples.reduce(function(a,b){ return b.rtt < a.rtt ? b : a; });
+          state.clockOffset = best.offset;
+        }
+        break;
+      }
+      case 'rtt-ping': {
+        sendMsg({ t: 'rtt-pong', t0: data.t0 });
+        break;
+      }
+      case 'rtt-pong': {
+        var rttMs = Date.now() - data.t0;
+        var label = rttMs + ' ms';
+        els.pingButton.textContent = label;
+        els.pingTimer.textContent = label;
+        break;
+      }
+
+      case 'start': {
+        var startAtLocal = data.ts - state.clockOffset;
+        state.running = true;
+        state.startAt = startAtLocal;
+        cancelAnimationFrame(state.rafId);
+        tick();
+        if(state.role === 'timer') playStartBeep();
+        break;
+      }
+      case 'stop': {
+        var stopAtLocal = data.ts - state.clockOffset;
+        state.running = false;
+        state.frozenElapsed = stopAtLocal - state.startAt;
+        cancelAnimationFrame(state.rafId);
+        renderTimer(state.frozenElapsed);
+        if(state.role === 'timer') playStopBeep();
+        break;
+      }
+      case 'reset': {
+        state.running = false;
+        state.frozenElapsed = 0;
+        cancelAnimationFrame(state.rafId);
+        renderTimer(0);
+        break;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // منطق شاشة الزر
+  // ---------------------------------------------------------------
+  els.btnSurface.addEventListener('touchstart', function(e){ e.preventDefault(); }, { passive: false });
+  els.btnSurface.addEventListener('touchend', function(e){ e.preventDefault(); toggleButton(); }, { passive: false });
+  els.btnSurface.addEventListener('mouseup', function(){ toggleButton(); });
+
+  els.resetBtn.addEventListener('touchend', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    if(!state.running) doReset();
+  }, { passive: false });
+  els.resetBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(!state.running) doReset();
+  });
+
+  function toggleButton(){
+    state.running = !state.running;
+    sendMsg({ t: state.running ? 'start' : 'stop', ts: Date.now() });
+    updateButtonUI();
+    if(navigator.vibrate) navigator.vibrate(30);
+  }
+
+  function doReset(){
+    sendMsg({ t: 'reset' });
+    if(navigator.vibrate) navigator.vibrate([20,40,20]);
+  }
+
+  function updateButtonUI(){
+    els.btnSurface.classList.toggle('running', state.running);
+    els.btnSurface.textContent = state.running ? 'اضغط للإيقاف' : 'اضغط للبدء';
+    els.resetBtn.classList.toggle('disabled', state.running);
+  }
+
+  // ---------------------------------------------------------------
+  // منطق شاشة المؤقت
+  // ---------------------------------------------------------------
+  function tick(){
+    if(!state.running) return;
+    var elapsed = Date.now() - state.startAt;
+    renderTimer(elapsed);
+    state.rafId = requestAnimationFrame(tick);
+  }
+
+  function pad(n, len){
+    n = String(Math.floor(n));
+    while(n.length < len) n = '0' + n;
+    return n;
+  }
+
+  function renderTimer(ms){
+    if(ms < 0) ms = 0;
+    var cs = Math.floor((ms % 1000) / 10);
+    var totalSec = Math.floor(ms / 1000);
+    var ss = totalSec % 60;
+    var mm = Math.floor(totalSec / 60);
+    els.timerDisplay.textContent = pad(mm,2) + ':' + pad(ss,2) + '.' + pad(cs,2);
+  }
+
+  renderTimer(0);
+
+})();
+</script>
+</body>
+</html>
